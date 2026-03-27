@@ -1,32 +1,133 @@
 # RouteOptimizer
-I've been working for years and thinking 'What is something that would be very useful and contribute to the Mining Industry that could leverage advances in technology and science - even Mathematics - that is not necessarily been done yet?'.
 
-I have a Masters in Mining Engineering from the University of Arizona and myself, who happens to know a lot about Software and have been working in the Software Industry for over 15 years and due to my experience working at Mining companies, I have grown more interest in how Software can help.
+Fleet and route optimization for mining operations: an **A-star-based dispatch simulator** exposed through a small **Django** UI, plus a separate **batch pipeline** that pulls haul data from **SQL Server** and solves **mixed-integer linear programs (MILP)** with **PuLP** for arc-level subproblems.
 
-Surprisingly, when I began working at mines I found that there is a great deal of software packages that are geared to help Geologists and Mining operations to do their job in a more orderly and controlled manner, such as Mine designing and Fleet management, which the latter is not uncommon in other industries focusing on Logistic services (airplanes, goods transport, recyclers, etc). Yes, even recyclers need to know where their product is going and when it arrives and obviously if all the product has been delivered.
+## Architecture
 
-Given the above the optimization problem is as follows:
+High-level view of how the pieces connect:
 
-MINIMIZE:
+```mermaid
+flowchart TB
+    subgraph client["Client"]
+        Browser["Web browser"]
+    end
 
-* Number of truck trips
-VARIABLES:
+    subgraph django["Django app — lean_ui / fleet_ui"]
+        URLs["URLconf /fleet/"]
+        Views["fleet_ui.views"]
+        Form["FleetConfigurationForm"]
+        Templates["Templates + CSRF"]
+        URLs --> Views
+        Views --> Form
+        Views --> Templates
+    end
 
-* Number of trucks on each arc (based on truck assignment for the day
-* Resident/Queued fleet at each destination in the mine
+    subgraph search_pkg["core_search"]
+        Run["run.run()"]
+        AStar["search.AStar"]
+        Entities["entities / state"]
+        Run --> AStar
+        Run --> Entities
+    end
 
-CONSTRAINTS:
+    subgraph core_pkg["core"]
+        Main["main.py — batch script"]
+        DA["data_access.fetch_from_sqlserver"]
+        Opt["optimization.LinearProblem + PuLP"]
+        Persist["persist_results → pickle"]
+        Main --> DA
+        Main --> Opt
+        Main --> Persist
+    end
 
-* Tonnage demand
-* Assignment continuity
-* Resident fleet conservation
-* Total fleet size
+    subgraph storage["Data stores"]
+        SQL[("SQL Server")]
+        SQLite[("SQLite — Django default")]
+        Pickle[("*.pickle job outputs")]
+    end
 
-For all you math nerds out there, here is a LINK to my profile which has more info on my research: https://www.researchgate.net/profile/Alfonso_Bonillas
-https://www.researchgate.net/project/Collective-Intelligence-for-Fleet-Optimization-in-Mines
+    Browser -->|"GET/POST"| URLs
+    Views -->|"simulate"| Run
+    Main --> DA
+    DA --> SQL
+    Opt --> Pickle
+    django -.->|"ORM / admin"| SQLite
+```
 
-The simulator works like a charm (ran with sample data from a local mine with approx. 100,000 oz of Gold production per year)
+**Two execution paths**
 
-Feel free to contact me for more info and feel free to contribute!
+| Path | Entry | Role |
+|------|--------|------|
+| **Interactive UI** | `lean_ui/manage.py` → `/fleet/` | User submits segment/truck counts; `core_search.run.run()` runs A* over a toy mine graph and returns step text to the template. |
+| **Batch LP** | `core/main.py` (run from repo root with `PYTHONPATH` set) | Loads production-style rows from SQL Server, builds per-arc MILP subproblems, solves with PuLP, writes pickle files per job name. |
 
-http://www.alioit.com
+The UI path does **not** call `core/main.py` or SQL Server today; the batch path does **not** serve HTTP.
+
+## Repository layout
+
+| Path | Purpose |
+|------|---------|
+| `core/` | Shared types (`Parameters`, `ProblemResults`), `data_access` (pyodbc), `optimization` (PuLP). |
+| `core_search/` | Mine graph model, fleet state, A\* search — used by the Django app. |
+| `lean_ui/` | Django project: `fleet_ui` app, templates, SQLite for Django’s own DB. |
+| `env_file.py` | Loads repo-root `.env` into `os.environ` (no extra dependency). |
+| `.env.example` | Template for secrets and config — copy to `.env`. |
+
+## Requirements
+
+- Python 3 and a virtual environment (recommended).
+- **Django UI**: dependencies in `lean_ui/requirements.txt` (includes Django, pandas, numpy, PuLP, pyodbc, etc.).
+- **SQL Server batch script**: ODBC driver (e.g. “ODBC Driver 13/17 for SQL Server”) and network access to the database.
+- **Environment**: see `.env.example`. Never commit `.env`.
+
+## Setup
+
+1. Clone the repo and create a venv:
+
+   ```bash
+   cd RouteOptimizer
+   python3 -m venv .venv
+   source .venv/bin/activate   # Windows: .venv\Scripts\activate
+   pip install -r lean_ui/requirements.txt
+   ```
+
+2. Configure environment variables (repo root):
+
+   ```bash
+   cp .env.example .env
+   # Set DJANGO_SECRET_KEY (required), e.g.:
+   # python3 -c "import secrets; print(secrets.token_urlsafe(50))"
+   # For local dev UI, set DJANGO_DEBUG=true
+   ```
+
+3. **Run the fleet UI** — the Python path must include the **repository root** so `import core_search` resolves:
+
+   ```bash
+   cd lean_ui
+   export PYTHONPATH="$(dirname "$(pwd)")"   # parent = repo root
+   export DJANGO_SECRET_KEY="your-secret-here"
+   export DJANGO_DEBUG=true                    # optional, local dev
+   python manage.py migrate
+   python manage.py runserver
+   ```
+
+   Open **http://127.0.0.1:8000/fleet/** (not the site root).
+
+4. **Run the batch LP pipeline** (after setting `SQLSERVER_*` in `.env`):
+
+   ```bash
+   cd RouteOptimizer
+   export PYTHONPATH="$(pwd)"
+   python -m core.main
+   ```
+
+## Background and research
+
+The optimization problem aims to **minimize truck trips** subject to tonnage demand, assignment continuity, resident/queued fleet at destinations, and total fleet size.
+
+For more context and research:
+
+- [ResearchGate — Alfonso Bonillas](https://www.researchgate.net/profile/Alfonso_Bonillas)
+- [Collective Intelligence for Fleet Optimization in Mines](https://www.researchgate.net/project/Collective-Intelligence-for-Fleet-Optimization-in-Mines)
+
+The simulator has been exercised with sample data from a mid-size gold operation (~100k oz/year). Contributions and questions are welcome: [alioit.com](http://www.alioit.com).
