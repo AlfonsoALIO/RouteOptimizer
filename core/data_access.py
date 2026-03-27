@@ -4,11 +4,26 @@ import pyodbc
 import pickle
 
 
-def fetch_from_sqlserver(server, database, username, password):
+def _odbc_braced(value):
+    """Escape a value for ODBC connection strings (mitigates connection-string injection)."""
+    return '{' + str(value).replace('}', '}}') + '}'
+
+
+def fetch_from_sqlserver(server, database, username, password, port=1443):
     """ Obtains the data from Alfonsos' SQL Server database format """
 
-    cnxn = pyodbc.connect(
-        'DRIVER={ODBC Driver 13 for SQL Server};SERVER=' + server + ';PORT=1443;DATABASE=' + database + ';UID=' + username + ';PWD=' + password)
+    conn_str = (
+        'DRIVER={ODBC Driver 13 for SQL Server};'
+        'SERVER=%s;PORT=%s;DATABASE=%s;UID=%s;PWD=%s'
+        % (
+            _odbc_braced(server),
+            port,
+            _odbc_braced(database),
+            _odbc_braced(username),
+            _odbc_braced(password),
+        )
+    )
+    cnxn = pyodbc.connect(conn_str)
     cursor = cnxn.cursor()
 
     tsql = """SELECT P.Date, P.Shift, P.MachineId, R.Loads, R.HT, R.Destination, R.Distance,
@@ -51,6 +66,6 @@ def persist_results(job_name, problem_results):
 
     json_results = {k:v.to_json() for k, v in problem_results.items()}
 
-    with open('%s.pickle' % job_name, 'w') as f:
+    with open('%s.pickle' % job_name, 'wb') as f:
         pickle.dump(json_results, f)
 

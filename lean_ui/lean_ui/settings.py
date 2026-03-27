@@ -11,21 +11,39 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 """
 
 import os
+import sys
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_repo_root = os.path.dirname(BASE_DIR)
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+from env_file import load_env_if_present
+
+load_env_if_present(os.path.join(_repo_root, '.env'))
+load_env_if_present(os.path.join(BASE_DIR, '.env'))
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '2)3ip9j4g4*kd_u2vyg-0+_n+xe96kiww1!)ene_v-t52ia^$a'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError(
+        'DJANGO_SECRET_KEY is not set. Copy .env.example to the repo root, set DJANGO_SECRET_KEY '
+        '(e.g. python -c "import secrets; print(secrets.token_urlsafe(50))"), and retry.'
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+    if h.strip()
+]
 
 
 # Application definition

@@ -1,8 +1,19 @@
+import os
+import sys
+from pathlib import Path
+
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
+
+from env_file import load_env_if_present
+
+load_env_if_present(str(_repo_root / '.env'))
+
 from core import Parameters, calculate_route_times, ProblemResults
 from core.optimization import LinearProblem, solve
 import core.data_access as da
 import pandas as pd
-
 
 # Job Name TODO: Parameterize
 job_name = "TestJob"
@@ -11,13 +22,18 @@ job_name = "TestJob"
 params = Parameters(tonnage_demand=50, shift_length=12)
 
 
-# Fetch data
-server = 'localhost'
-database = 'stg_Production'
-username = 'sa'
-password = 'Masteryoda12345!'
+# Fetch data (credentials must not be committed; see .env.example)
+server = os.environ.get('SQLSERVER_SERVER', 'localhost')
+database = os.environ.get('SQLSERVER_DATABASE', 'stg_Production')
+username = os.environ.get('SQLSERVER_USERNAME', 'sa')
+password = os.environ.get('SQLSERVER_PASSWORD')
+if not password:
+    raise RuntimeError(
+        'SQLSERVER_PASSWORD is not set. Copy .env.example to .env and set database credentials.'
+    )
 
-data = da.fetch_from_sqlserver(server, database, username, password)
+port = int(os.environ.get('SQLSERVER_PORT', '1443'))
+data = da.fetch_from_sqlserver(server, database, username, password, port=port)
 
 
 # Infer route times per segment and destinations
