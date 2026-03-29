@@ -12,7 +12,7 @@ pickleshare==0.7.4
 prompt-toolkit==1.0.15
 ptyprocess==0.5.2
 PuLP==1.6.8
-Pygments==2.2.0
+Pygments==2.7.4
 pyodbc==4.0.22
 pyparsing==2.2.0
 python-dateutil==2.7.0
