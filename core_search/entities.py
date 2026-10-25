@@ -46,8 +46,11 @@ class Location(object):
 class MineConfiguration(object):
     """Represents the arrangement of the mine as a graph connecting the locations.
     This class represents a graph representation of the mine"""
-    def __init__(self, connections):
-        """Connections is a list of the directed edges of the graph. The nodes are inferred from the pairs"""
+    def __init__(self, connections, travel_times=None):
+        """Connections is a list of the directed edges of the graph. The nodes are inferred from the pairs.
+
+        travel_times: optional map (src, dest) -> minutes. Missing arcs default to 1 minute.
+        """
 
         # Store the raw edges
         self._connections = tuple(connections)
@@ -71,6 +74,11 @@ class MineConfiguration(object):
             incoming[dest].append(src)
 
         self.incoming = incoming
+        self._travel_times = dict(travel_times) if travel_times else {}
+
+    def travel_time(self, source, destination):
+        """Return arc travel time in minutes (default 1 if unset)."""
+        return float(self._travel_times.get((source, destination), 1.0))
 
     def destinations(self, source):
         """Returns the locations to which a car can go from the current location"""

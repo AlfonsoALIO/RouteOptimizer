@@ -11,7 +11,7 @@ def _format_steps(simulation, steps):
         return steps
 
     steps.append("")
-    steps.append("Total number of trips: %i" % simulation.cost)
+    steps.append("Total travel time: %s minutes" % simulation.cost)
     steps.append("")
     nodes = simulation.path_from_root()
     prev_seg = 1
@@ -21,7 +21,7 @@ def _format_steps(simulation, steps):
             num_segments = s.segment - prev_seg
             prev_seg = s.segment
             steps.append(
-                "Dispatch: %i\tNumber of trips: %i\tTons moved: %i"
+                "Dispatch: %i\tSegments: %i\tTons moved: %i"
                 % (ix, num_segments, s.total_covered_demand())
             )
             steps.append("")
@@ -48,7 +48,7 @@ def index(request):
                 num_segments,
                 num_trucks,
                 listener=lambda s: steps.append(
-                    "Iteration: %i\tEstimated Cost: %i\tAcutal Cost: %i\tSegment: %i\tProgress: %i tons"
+                    "Iteration: %i\tEstimated Cost: %s min\tActual Cost: %s min\tSegment: %i\tProgress: %i tons"
                     % s
                 ),
                 scenario=scenario,
