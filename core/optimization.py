@@ -8,16 +8,19 @@ from pulp import *
 class LinearProblem(object):
     """ Represents an instance of a subproblem to be solved by the fleet optimizator"""
 
-    def __init__(self, name, arc_times, fleet_size):
+    def __init__(self, name, fleet_size, travel_time_minutes, shift_length_hours):
         """ Constructor.
 
         name: (source, destination) arc endpoints
-        arc_times: map of destination -> travel time used for the horizon
         fleet_size: maximum trucks available in a segment
+        travel_time_minutes: travel time for this arc
+        shift_length_hours: scenario shift length; segment count is
+            ceil(shift_length_hours * 60 / travel_time_minutes)
         """
         self.name = name
-        self.arc_times = arc_times
         self.fleet_size = fleet_size
+        self.travel_time_minutes = float(travel_time_minutes)
+        self.shift_length_hours = float(shift_length_hours)
 
         if not isinstance(name, (tuple, list)) or len(name) != 2:
             raise ValueError("arc name must be a (source, destination) pair, got %r" % (name,))
@@ -25,12 +28,16 @@ class LinearProblem(object):
         source, destination = name
         self.locations = (source, destination)
 
-        if destination not in arc_times:
-            raise ValueError("missing destination travel time: %s" % (destination,))
+        if self.travel_time_minutes <= 0:
+            raise ValueError(
+                "travel_time_minutes must be positive for destination %s" % (destination,)
+            )
+        if self.shift_length_hours <= 0:
+            raise ValueError("shift_length_hours must be positive")
 
-        # TODO: Parameterize this
-        # Ten hours and two shifts
-        self.num_segments = math.ceil(10 * 60 * 2 / float(arc_times[destination]))
+        self.num_segments = int(
+            math.ceil(self.shift_length_hours * 60.0 / self.travel_time_minutes)
+        )
 
 
 def solve(problem):

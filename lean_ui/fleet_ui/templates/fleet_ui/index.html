@@ -12,48 +12,46 @@
     <tr>
         <td>
 <table>
-    <tr><td><b>Source</b></td><td><b>Destination</b></td></tr>
-    <tr><td>garage</td><td>loader1</td></tr>
-    <tr><td>garage</td><td>loader2</td></tr>
-    <tr><td>loader1</td><td>garage</td></tr>
-    <tr><td>loader2</td><td> garage</td></tr>
-    <tr><td>waste_dump</td><td> garage</td></tr>
-    <tr><td>garage</td><td>shovel1</td></tr>
-    <tr><td>garage</td><td>shovel2</td></tr>
-    <tr><td>waste_dump</td><td>loader1</td></tr>
-    <tr><td>loader1</td><td>waste_dump</td></tr>
-    <tr><td>waste_dump</td><td>shovel1</td></tr>
-    <tr><td>shovel1</td><td>waste_dump</td></tr>
-    <tr><td>waste_dump</td><td>shovel2</td></tr>
-    <tr><td>shovel2</td><td>waste_dump</td></tr>
-    <tr><td>crusher</td><td>shovel1</td></tr>
-    <tr><td>shovel1</td><td>crusher</td></tr>
-    <tr><td>crusher</td><td>shovel2</td></tr>
-    <tr><td>shovel2</td><td>crusher</td></tr>
-    <tr><td>crusher</td><td>loader2</td></tr>
-    <tr><td>loader2</td><td>crusher</td></tr>
-    <tr><td>loader1</td><td>crusher</td></tr>
+    <tr><td><b>Source</b></td><td><b>Destination</b></td><td><b>Minutes</b></td></tr>
+    {% for arc in scenario.arcs %}
+    <tr>
+        <td>{{ arc.source }}</td>
+        <td>{{ arc.destination }}</td>
+        <td>{{ arc.travel_time_minutes }}</td>
+    </tr>
+    {% endfor %}
 </table>
             </td>
 <td>
 
 <table>
     <tr><td><b>Source</b></td><td><b>Destination</b></td><td><b>Tons</b></td></tr>
-    <tr><td>shovel1</td><td>crusher</td><td>8000</td></tr>
-<tr><td>shovel2</td><td>crusher</td><td>1200</td></tr>
-<tr><td>loader1</td><td>crusher</td><td>4000</td></tr>
-<tr><td>shovel1</td><td>waste_dump</td><td>1600</td></tr>
-<tr><td>shovel2</td><td>waste_dump</td><td>2000</td></tr>
-<tr><td>loader1</td><td>waste_dump</td><td>1000</td></tr>
+    {% for demand in scenario.demands %}
+    <tr>
+        <td>{{ demand.source }}</td>
+        <td>{{ demand.destination }}</td>
+        <td>{{ demand.tons }}</td>
+    </tr>
+    {% endfor %}
 </table>
     </td>
     </tr>
     </table>
 <br>
 <h2>Parameters</h2>
+{% if scenario_error %}
+<p><strong>Error:</strong> {{ scenario_error }}</p>
+{% endif %}
+{% if form.non_field_errors %}
+<ul>
+{% for err in form.non_field_errors %}
+    <li>{{ err }}</li>
+{% endfor %}
+</ul>
+{% endif %}
 <form action="/fleet/" method="post">
     {% csrf_token %}
-    {{ form }}
+    {{ form.as_p }}
     <input type="submit" value="Simulate" />
 </form>
 <br />

@@ -7,18 +7,26 @@ import pytest
 from core.optimization import LinearProblem, solve
 
 
-def test_locations_are_arc_endpoints_not_keys_method():
-    arc_times = {"DST": 60.0}
-    problem = LinearProblem(("SRC", "DST"), arc_times, fleet_size=5)
+def test_locations_are_arc_endpoints():
+    problem = LinearProblem(
+        ("SRC", "DST"),
+        fleet_size=5,
+        travel_time_minutes=60.0,
+        shift_length_hours=10.0,
+    )
 
     assert problem.locations == ("SRC", "DST")
     assert not callable(problem.locations)
-    assert problem.locations is not arc_times.keys
-    assert problem.num_segments == math.ceil(10 * 60 * 2 / 60.0)
+    assert problem.num_segments == math.ceil(10.0 * 60.0 / 60.0)
 
 
 def test_formulation_builds_and_iterates_locations():
-    problem = LinearProblem(("SRC", "DST"), {"DST": 120.0}, fleet_size=5)
+    problem = LinearProblem(
+        ("SRC", "DST"),
+        fleet_size=5,
+        travel_time_minutes=120.0,
+        shift_length_hours=10.0,
+    )
 
     status, variables = solve(problem)
 
@@ -28,6 +36,11 @@ def test_formulation_builds_and_iterates_locations():
         assert len(variables[loc]) == problem.num_segments
 
 
-def test_missing_destination_fails_at_construction():
-    with pytest.raises(ValueError, match="missing destination travel time: MISSING"):
-        LinearProblem(("SRC", "MISSING"), {"DST": 60.0}, fleet_size=5)
+def test_non_positive_travel_time_fails_at_construction():
+    with pytest.raises(ValueError, match="travel_time_minutes must be positive"):
+        LinearProblem(
+            ("SRC", "DST"),
+            fleet_size=5,
+            travel_time_minutes=0,
+            shift_length_hours=10.0,
+        )
