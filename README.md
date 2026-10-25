@@ -130,4 +130,4 @@ For more context and research:
 - [ResearchGate — Alfonso Bonillas](https://www.researchgate.net/profile/Alfonso_Bonillas)
 - [Collective Intelligence for Fleet Optimization in Mines](https://www.researchgate.net/project/Collective-Intelligence-for-Fleet-Optimization-in-Mines)
 
-The simulator has been exercised with sample data from a mid-size gold operation (~100k oz/year). Contributions and questions are welcome: [alioit.com](http://www.alioit.com).
+The simulator has been exercised with sample data from a mid-size gold operation (~100k oz/year). Contributions and questions are welcome: [alioit.com/route-optimizer](https://www.alioit.com/route-optimizer).
