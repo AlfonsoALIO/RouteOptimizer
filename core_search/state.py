@@ -41,13 +41,23 @@ class FleetState(object):
             self.num_effective_routes = sum(d.resident_capacity for s, d in route_demands)
 
     def __eq__(self, other):
-        """ Compares two fleet states to check equivalence """
-        return hash(self) == hash(other)
+        """ Compares covered demand, resident assignments, and segment """
+        if not isinstance(other, FleetState):
+            return False
+        return (
+            self.segment == other.segment
+            and frozenset(self.covered_demands.items()) == frozenset(other.covered_demands.items())
+            and self.__factorize_assignments() == other.__factorize_assignments()
+        )
 
     def __hash__(self):
         """ Custom hash implementation to consider only elements of interest """
 
-        elements = (frozenset(self.covered_demands.items()), self.__factorize_assignments())
+        elements = (
+            self.segment,
+            frozenset(self.covered_demands.items()),
+            self.__factorize_assignments(),
+        )
 
         return hash(elements)
 

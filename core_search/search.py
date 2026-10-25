@@ -41,6 +41,30 @@ class Node(object):
         return reversed_path
 
 
+def enqueue_or_decrease(queue, child):
+    """Push child onto the open set, or replace a waiting copy if cheaper.
+
+    Every open-set entry is a ``(cost, node)`` pair. A waiting node with
+    equal or higher cost is left unchanged.
+    """
+    waiting_index = None
+    for ix, (_, waiting) in enumerate(queue):
+        if waiting == child:
+            waiting_index = ix
+            break
+
+    if waiting_index is None:
+        heapq.heappush(queue, (child.cost, child))
+        return "pushed"
+
+    if child.cost < queue[waiting_index][1].cost:
+        queue[waiting_index] = (child.cost, child)
+        heapq.heapify(queue)
+        return "decreased"
+
+    return "unchanged"
+
+
 class AStar(object):
 
     def __init__(self, initial_state, heuristic = lambda s: 0, listener = None):
@@ -77,7 +101,12 @@ class AStar(object):
             num += 1
 
             # Fetch the next node to consider
-            _, node = heapq.heappop(queue) # Ignore the first element of the tuple, which is the cost used for ranking
+            _, node = heapq.heappop(queue)  # Ignore the first element of the tuple, which is the cost used for ranking
+
+            # A stale higher-cost copy may remain after a decrease-key; skip it
+            if node in explored:
+                continue
+
             if self.listener:
                 self.listener((num, node.cost, node.state.trips, node.state.segment, node.state.total_covered_demand()))
 
@@ -94,7 +123,7 @@ class AStar(object):
             else:
                 # Compute the possible children
                 possible_actions = state.possible_actions()
-                for ix, action in enumerate(possible_actions):
+                for action in possible_actions:
                     # Clone the state
                     new_state = state.clone()
                     # Execute the given action to mutate the clone
@@ -104,25 +133,12 @@ class AStar(object):
 
                     if child.cost >= sys.maxsize:
                         continue
-                    # See if we haven't been in this state before
-                    elif child not in explored:
-                        # If this child is not yet in the queue, add it!
-                        if child not in map(lambda e: e[1], queue):
-                            heapq.heappush(queue, (child.cost, child))
-                    else:
-                        # Check if the element is in the queue with another cost and if so, replace it, in one pass
-                        for ix in range(len(queue)):
-                            elem = queue[ix][1]
-                            # If we identify the current node equivalent to the current child
-                            if elem == child:
-                                # And if the cost of the child is less than that of the current node
-                                if child.cost < elem.cost:
-                                    # Replace the element in the array
-                                    queue[ix] = child
-                                    # Restore the heap property
-                                    heapq.heapify(queue)
-                                # Since the element is only once in the queue, we can break the loop
-                                break
+
+                    # Already expanded: do not reopen
+                    if child in explored:
+                        continue
+
+                    enqueue_or_decrease(queue, child)
 
         # Return the solution, if found
         return solution
