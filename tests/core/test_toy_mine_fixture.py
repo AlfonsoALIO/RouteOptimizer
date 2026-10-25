@@ -16,7 +16,7 @@ def test_toy_mine_fixture_is_valid_scenario():
     assert all(loc["resident_capacity"] == 2 for loc in working)
 
     assert all(arc["travel_time_minutes"] > 0 for arc in scenario.arcs)
-    assert len(scenario.arcs) == 20
+    assert len(scenario.arcs) == 23
 
     demand_map = {
         (d["source"], d["destination"]): d["tons"] for d in scenario.demands
@@ -39,9 +39,10 @@ def test_dispatch_runs_on_fixture_without_sql():
     assert solution is not None
     assert solution.cost > 0
 
-    # Search still uses trip-count objective; arcs carry travel time unused for cost
+    # Objective is arc travel time in minutes
     scenario = load_toy_mine()
     assert all("travel_time_minutes" in arc for arc in scenario.arcs)
+    assert scenario.arcs[0]["travel_time_minutes"] > 0
 
 
 def test_dispatch_uses_requested_truck_count_and_horizon():

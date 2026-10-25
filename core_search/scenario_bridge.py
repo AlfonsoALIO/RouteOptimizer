@@ -10,7 +10,7 @@ def fleet_state_from_scenario(scenario, num_segments, num_trucks):
     """Create a FleetState from a scenario.
 
     Segment count and truck count come from the caller (fleet form).
-    Arc travel times stay on the scenario and are not the search objective yet.
+    Arc travel times become the search movement cost in minutes.
     """
     locations_by_name = {}
     for loc in scenario.locations:
@@ -23,7 +23,14 @@ def fleet_state_from_scenario(scenario, num_segments, num_trucks):
         (locations_by_name[arc["source"]], locations_by_name[arc["destination"]])
         for arc in scenario.arcs
     ]
-    config = MineConfiguration(connections)
+    travel_times = {
+        (
+            locations_by_name[arc["source"]],
+            locations_by_name[arc["destination"]],
+        ): float(arc["travel_time_minutes"])
+        for arc in scenario.arcs
+    }
+    config = MineConfiguration(connections, travel_times=travel_times)
 
     capacity = 100.0
     if scenario.trucks:
@@ -40,4 +47,10 @@ def fleet_state_from_scenario(scenario, num_segments, num_trucks):
         )
         demands[key] = demand["tons"]
 
-    return FleetState(config, trucks, demands, num_segments)
+    return FleetState(
+        config,
+        trucks,
+        demands,
+        num_segments,
+        shift_length_hours=scenario.shift_length_hours,
+    )

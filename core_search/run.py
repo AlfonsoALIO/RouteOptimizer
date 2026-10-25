@@ -9,9 +9,10 @@ from core_search.search import AStar
 
 
 def _heuristic(state):
-    """A* heuristic: remaining segments assuming highest-capacity trucks.
+    """A* heuristic: remaining haul work in minutes (not trip count).
 
-    Travel time on arcs is not part of this objective yet.
+    For each open demand arc, estimate how many truck-dispatches are still
+    needed and multiply by that arc's travel time.
     """
     trucks = sorted(state.trucks, key=lambda t: t.tonnage_capacity, reverse=True)
 
@@ -23,24 +24,21 @@ def _heuristic(state):
 
     routes = sorted(routes, key=lambda r: r[1], reverse=True)
 
-    segments_remaining = list()
-    num_taken_trucks = 0
+    minutes_remaining = 0.0
 
     for k, remaining in routes:
         location_capacity = k[1].resident_capacity
         to_take = location_capacity if len(trucks) >= location_capacity else len(trucks)
         taken_trucks = trucks[:to_take]
-        num_taken_trucks += len(taken_trucks)
         trucks = trucks[to_take:]
 
         if to_take != 0:
             capacity = sum(t.tonnage_capacity for t in taken_trucks)
-            i = math.ceil(float(remaining) / capacity)
-            segments_remaining.append(i)
+            segments = math.ceil(float(remaining) / capacity)
+            arc_minutes = state.config.travel_time(k[0], k[1])
+            minutes_remaining += segments * len(taken_trucks) * arc_minutes
 
-    if len(segments_remaining) > 0:
-        return sum(segments_remaining) + num_taken_trucks
-    return 0
+    return minutes_remaining
 
 
 def run(num_segments=58, num_trucks=21, listener=None, scenario=None):
@@ -56,14 +54,14 @@ def run(num_segments=58, num_trucks=21, listener=None, scenario=None):
 if __name__ == "__main__":
     solution = run(
         listener=lambda t: print(
-            "Iteration: %i\tEstimated Cost: %i\tAcutal Cost: %i\tSegment: %i\tProgress: %i tons"
+            "Iteration: %i\tEstimated Cost: %s\tActual Cost: %s\tSegment: %i\tProgress: %i tons"
             % t
         )
     )
 
     if solution:
         print()
-        print("Total number of trips: %i" % solution.cost)
+        print("Total travel time: %s minutes" % solution.cost)
         print()
         nodes = solution.path_from_root()
         prev_seg = 1

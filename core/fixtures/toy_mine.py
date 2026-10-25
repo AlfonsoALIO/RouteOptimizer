@@ -4,7 +4,7 @@ from core.scenario import load_scenario
 
 TOY_MINE_NAME = "toy_mine"
 
-# Travel times are carried on arcs for later stories; not the search objective yet.
+# Uniform travel time; search costs movements by these minutes.
 _DEFAULT_TRAVEL_TIME_MINUTES = 15.0
 
 _WORKING_LOCATIONS = (
@@ -25,6 +25,9 @@ _CONNECTIONS = (
     ("W", "garage"),
     ("garage", "S1"),
     ("garage", "S2"),
+    ("S1", "garage"),
+    ("S2", "garage"),
+    ("C", "garage"),
     ("W", "L1"),
     ("L1", "W"),
     ("W", "S1"),

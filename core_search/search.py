@@ -7,7 +7,7 @@ class Node(object):
     def __init__(self, state, cost = 0, action=None, parent = None):
         """ Fields: parent is a reference to the node's parent in the tree
                     state is a FleetState instance
-                    cost is the amount of trips in the path from the root to this node
+                    cost is path travel time in minutes (plus heuristic when ranking)
                     action is the  action instance that resulted in state as its outcome"""
 
         self.parent = parent

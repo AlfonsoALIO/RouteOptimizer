@@ -9,12 +9,21 @@ from collections import defaultdict
 class FleetState(object):
     """ Represents the current status of the fleet """
 
-    def __init__(self, config, trucks, route_demands, max_segment, warm_start=False):
+    def __init__(
+        self,
+        config,
+        trucks,
+        route_demands,
+        max_segment,
+        shift_length_hours=12.0,
+        warm_start=False,
+    ):
         """ Parameters:
                 - config: MineConfiguration instance
                 - truck_capacities: Map from truck name to tonnage capacity.
                     Fleet members are inferred from this parameter
                 - route_demands: Map key: Tuple of locations,
+                - shift_length_hours: scenario shift length; divides into segment minutes
         """
 
         self.config = config
@@ -22,13 +31,20 @@ class FleetState(object):
         self.route_demands = route_demands
 
         self.max_segment = max_segment
+        self.shift_length_hours = float(shift_length_hours)
 
         if not warm_start:
-            # Internal book keeping of the state
+            # Accumulated travel time of executed movements, in minutes
             self.trips = 0
             self.covered_demands = {k: 0 for k in route_demands}
             self.resident_trucks = {loc: set() for loc in config.locations()}
+            # truck -> (source, destination, remaining_minutes)
+            self.in_transit = {}
             self.segment = 1
+            self.clock_minutes = 0.0
+            self.segment_length_minutes = (
+                self.shift_length_hours * 60.0 / float(max_segment)
+            )
 
             self.garage = list(filter(lambda l: l.name == "garage", config.locations()))[0]
 
@@ -41,13 +57,14 @@ class FleetState(object):
             self.num_effective_routes = sum(d.resident_capacity for s, d in route_demands)
 
     def __eq__(self, other):
-        """ Compares covered demand, resident assignments, and segment """
+        """Compares coverage, residents, segment, and in-transit arcs."""
         if not isinstance(other, FleetState):
             return False
         return (
             self.segment == other.segment
             and frozenset(self.covered_demands.items()) == frozenset(other.covered_demands.items())
             and self.__factorize_assignments() == other.__factorize_assignments()
+            and self.__factorize_transit() == other.__factorize_transit()
         )
 
     def __hash__(self):
@@ -57,6 +74,7 @@ class FleetState(object):
             self.segment,
             frozenset(self.covered_demands.items()),
             self.__factorize_assignments(),
+            self.__factorize_transit(),
         )
 
         return hash(elements)
@@ -67,6 +85,13 @@ class FleetState(object):
         # Generate tuples for the resident truck configurations of the following format:
         # (location, # of trucks, total capacity)
         return frozenset((k, len(v), sum(t.tonnage_capacity for t in v)) for k, v in self.resident_trucks.items())
+
+    def __factorize_transit(self):
+        """Bag in-transit trucks by arc, remaining minutes, and capacity class."""
+        counts = defaultdict(int)
+        for truck, (src, dst, remaining) in self.in_transit.items():
+            counts[(src, dst, remaining, truck.tonnage_capacity)] += 1
+        return frozenset(counts.items())
 
     def __permutate_assignemnts(self, src, trucks, locations):
         """ Returns a sequence of movements that contain all the possible assignments emanating from the source"""
@@ -139,12 +164,25 @@ class FleetState(object):
 
     def clone(self):
         """ Creates a new instance of the state with the same values """
-        cl = FleetState(self.config, self.trucks, self.route_demands, self.max_segment, warm_start=True)
+        cl = FleetState(
+            self.config,
+            self.trucks,
+            self.route_demands,
+            self.max_segment,
+            shift_length_hours=self.shift_length_hours,
+            warm_start=True,
+        )
         cl.covered_demands = {k: v for k, v in self.covered_demands.items()}
         cl.resident_trucks = {k: copy.copy(v) for k, v in self.resident_trucks.items()}
+        cl.in_transit = {
+            truck: (src, dst, remaining)
+            for truck, (src, dst, remaining) in self.in_transit.items()
+        }
         cl.trucks = self.trucks  # No need to copy this as it's immutable
         cl.trips = self.trips
         cl.segment = self.segment
+        cl.clock_minutes = self.clock_minutes
+        cl.segment_length_minutes = self.segment_length_minutes
         cl.garage = self.garage
         cl.max_capacity = self.max_capacity
         cl.num_effective_routes = self.num_effective_routes
@@ -157,6 +195,9 @@ class FleetState(object):
         The criteria is: All routes should have it's demand covered and all trucks should be back at the garage
         by the end of the simulation
         """
+
+        if self.in_transit:
+            return False
 
         # All trucks should be in the garage
         all_in_garage = len(self.resident_trucks[self.garage]) == len(self.trucks)
@@ -176,172 +217,267 @@ class FleetState(object):
             else:
                 return False
 
-    def possible_actions(self):
-        """ Returns an iterable with all the actions to consider given the current state """
+    def _open_slots(self, location):
+        """How many more trucks can reside at location."""
+        return max(0, location.resident_capacity - len(self.resident_trucks[location]))
 
-        # If time's up, no actions left
+    def _assign_by_capacity_class(self, trucks, src, dst, max_trucks, remaining_demand=None):
+        """Assign trucks to one destination by capacity class (not by truck identity).
+
+        Within a capacity class, trucks are taken in a stable name order so two
+        equal-capacity trucks do not produce distinct permutations.
+        """
+        ordered = sorted(trucks, key=lambda t: (-t.tonnage_capacity, t.name))
+        movements = []
+        remaining_tons = remaining_demand
+        slots_left = max_trucks
+
+        for truck in ordered:
+            if slots_left <= 0:
+                break
+            if remaining_tons is not None and remaining_tons <= 0:
+                break
+            movements.append(Movement(truck, src, dst))
+            slots_left -= 1
+            if remaining_tons is not None:
+                remaining_tons -= truck.tonnage_capacity
+
+        return movements
+
+    def _greedy_movements_from(self, src):
+        """Legacy per-source greedy movements (pre-Epic-3 dispatcher)."""
+        config = self.config
+        ds = sorted(config.destinations(src), key=lambda l: l.name)
+        local_trucks = sorted(
+            self.resident_trucks[src],
+            key=lambda tr: tr.tonnage_capacity,
+            reverse=True,
+        )
+        movements = []
+
+        destinations_with_demand = []
+        destinations_without_demand = []
+        for d in ds:
+            if (src, d) in self.route_demands:
+                destinations_with_demand.append(d)
+            else:
+                destinations_without_demand.append(d)
+
+        for d in destinations_with_demand:
+            key = (src, d)
+            if self.covered_demands[key] < self.route_demands[key]:
+                remaining_demand = self.route_demands[key] - self.covered_demands[key]
+                for _ in range(d.resident_capacity):
+                    if remaining_demand > 0 and len(local_trucks) > 0:
+                        t = local_trucks.pop()
+                        movements.append(Movement(t, src, d))
+                        remaining_demand -= t.tonnage_capacity
+                    else:
+                        break
+
+        eligible_ds = []
+        for d in destinations_without_demand:
+            for d2 in config.destinations(d):
+                key = (d, d2)
+                if key in self.route_demands:
+                    remaining_demand = self.route_demands[key] - self.covered_demands[key]
+                    if remaining_demand > 0:
+                        eligible_ds.append(d)
+                        break
+
+        for d in eligible_ds:
+            if len(local_trucks) > 0:
+                num_slots = d.resident_capacity - len(self.resident_trucks[d])
+                for _ in range(num_slots):
+                    if not local_trucks:
+                        break
+                    t = local_trucks.pop()
+                    movements.append(Movement(t, src, d))
+            else:
+                break
+
+        if src != self.garage:
+            for t in local_trucks:
+                movements.append(Movement(t, src, self.garage))
+
+        return movements
+
+    def _open_demand_destinations(self, src):
+        """Destinations from src that still have uncovered haul demand."""
+        open_ds = []
+        for d in sorted(self.config.destinations(src), key=lambda l: l.name):
+            key = (src, d)
+            if key in self.route_demands and self.covered_demands[key] < self.route_demands[key]:
+                open_ds.append(d)
+        return open_ds
+
+    def possible_actions(self):
+        """Return the greedy assignment plus alternate capacity-class choices.
+
+        The greedy combined move matches the pre-Epic-3 dispatcher. When a
+        source faces two or more open demand arcs, also offer sending that
+        source's trucks onto each arc alone (other sources keep their greedy
+        moves), plus idle and return-to-garage.
+        """
+
         if self.segment >= self.max_segment:
             return list()
 
-        movement_list = list()
-        config = self.config
+        occupied = sorted(
+            [l for l in self.resident_trucks if len(self.resident_trucks[l]) > 0],
+            key=lambda l: l.name,
+        )
+        greedy_by_src = {src: self._greedy_movements_from(src) for src in occupied}
 
-        # First, figure out the locations in the mine that have any truck
-        rt = self.resident_trucks
-        locations = sorted([l for l in rt if len(rt[l]) > 0], key=lambda l: l.name)
+        actions = []
+        seen = set()
 
-        for src in locations:
-            # What are the possible destinations, only consider those with enough room
-            # Compute how many trucks we can move at most
+        def add_action(action):
+            if action not in seen:
+                seen.add(action)
+                actions.append(action)
 
-            ds = sorted(config.destinations(src), key=lambda l: l.name)
+        add_action(Action())
 
-            # Fetch the trucks of the current destination, sorted decreasingly by capacity
-            local_trucks = sorted(self.resident_trucks[src], key=lambda tr: tr.tonnage_capacity, reverse=True)
+        all_greedy = [m for src in occupied for m in greedy_by_src[src]]
+        if all_greedy:
+            add_action(Action(*all_greedy))
 
-            # Categorize the destinations reachable from the current location
-            destinations_with_demand = list()
-            destinations_without_demand = list()
-            for d in ds:
-                if (src, d) in self.route_demands:
-                    destinations_with_demand.append(d)
-                else:
-                    destinations_without_demand.append(d)
+        # Capacity-class branching is only expanded when a single source is
+        # occupied. Multi-source fleets (e.g. the 21-truck toy mine) keep the
+        # legacy greedy+idle fringe so A* stays tractable; unit scenarios with
+        # trucks already at one shovel still see both arcs, idle, and garage.
+        if len(occupied) != 1:
+            return actions
 
-            # If the pair has demand
-            for d in destinations_with_demand:
-                key = (src, d)
+        src = occupied[0]
+        demand_open = self._open_demand_destinations(src)
+        if len(demand_open) < 2:
+            return actions
 
-                # If there's still demand to cover in this route
-                if self.covered_demands[key] < self.route_demands[key]:
-                    remaining_demand = self.route_demands[key] - self.covered_demands[key]
-                    # For each of slots available in the destination, dispatch a truck, if still available
-                    for i in range(d.resident_capacity):
-                        # The truck will be dispatched only if there's still demand to cover and if we haven't used
-                        # them all yet
-                        if remaining_demand > 0 and len(local_trucks) > 0:
-                            t = local_trucks.pop()
-                            movement_list.append(Movement(t, src, d))
-                            remaining_demand -= t.tonnage_capacity
-                        # Otherwise we will break the loop, as it doesn't make sense anymore
-                        else:
-                            break
+        local_trucks = list(self.resident_trucks[src])
+        for d in demand_open:
+            remaining = self.route_demands[(src, d)] - self.covered_demands[(src, d)]
+            # Unassigned local trucks stay put (idle); garage return is its own action.
+            branch = self._assign_by_capacity_class(
+                local_trucks,
+                src,
+                d,
+                d.resident_capacity,
+                remaining_demand=remaining,
+            )
+            if branch:
+                add_action(Action(*branch))
 
-            # Get a list of eligible destinations to dispatch by looking to the second order destinations
-            eligible_ds = list()
-            for d in destinations_without_demand:
-                for d2 in config.destinations(d):
-                    key = (d, d2)
-                    if key in self.route_demands:
-                        remaining_demand = self.route_demands[key] - self.covered_demands[key]
-                        if remaining_demand > 0:
-                            eligible_ds.append(d)
-                            break
+        if src != self.garage and local_trucks:
+            garage_moves = self._assign_by_capacity_class(
+                local_trucks, src, self.garage, len(local_trucks)
+            )
+            if garage_moves:
+                add_action(Action(*garage_moves))
 
-            # Here do something with the eligible destinations
-            for d in eligible_ds:
-                # If there are trucks left to dispatch
-                if len(local_trucks) > 0:
-                    # How many trucks could be dispatched to the destination
-                    num_slots = d.resident_capacity - len(self.resident_trucks[d])
-                    # Dispatch those trucks
-                    for i in range(num_slots):
-                        t = local_trucks.pop()
-                        movement_list.append(Movement(t, src, d))
-                # If there are no trucks left, break this loop since it doesn't make sense anymore
-                else:
-                    break
+        return actions
 
-            # If there are trucks left here and no more eligible destinations, send them back to the garage
-            # As long as this isn't the garage
-            if src != self.garage:
-                for t in local_trucks:
-                    movement_list.append(Movement(t, src, self.garage))
+    def _arrive(self, truck, source, destination):
+        """Place a truck at destination and credit demand if this was a haul arc."""
+        self.resident_trucks[destination].add(truck)
+        key = (source, destination)
+        if key in self.route_demands:
+            remaining = self.route_demands[key] - self.covered_demands[key]
+            if remaining > 0:
+                self.covered_demands[key] += min(truck.tonnage_capacity, remaining)
 
-        return [Action(*movement_list), Action()]
+    def _progress_transit(self, minutes):
+        """Advance in-transit trucks by minutes; arrive when remaining is exhausted."""
+        still = {}
+        for truck, (source, destination, remaining) in self.in_transit.items():
+            left = remaining - minutes
+            if left <= 0:
+                self._arrive(truck, source, destination)
+            else:
+                still[truck] = (source, destination, left)
+        self.in_transit = still
+
+    def _execute_demand_shortcut(self, action):
+        """Legacy multi-segment haul when every movement is an open demand arc.
+
+        Trucks stay at the source (round-trip haul). Used so large fleets remain
+        searchable; repositioning still uses the in-transit clock model.
+        """
+        groups = defaultdict(list)
+        for movement in action.movements:
+            k = (movement.source, movement.destination)
+            groups[k].append(movement.truck)
+
+        remaining_demand = {
+            k: (self.route_demands[k] - self.covered_demands[k]) for k in groups
+        }
+        candidate_segment_amounts = [self.max_segment - self.segment]
+        for k in groups:
+            trucks = groups[k]
+            capacity = float(sum(t.tonnage_capacity for t in trucks))
+            candidate_segment_amounts.append(
+                math.ceil(remaining_demand[k] / capacity)
+            )
+
+        num_segments = min(candidate_segment_amounts)
+        for k in groups:
+            trucks = groups[k]
+            capacity = float(sum(t.tonnage_capacity for t in trucks))
+            self.covered_demands[k] += min(
+                remaining_demand[k], capacity * num_segments
+            )
+            arc_minutes = self.config.travel_time(k[0], k[1])
+            self.trips += len(trucks) * num_segments * arc_minutes
+
+        self.segment += num_segments
+        self.clock_minutes += num_segments * self.segment_length_minutes
+        if self.in_transit:
+            self._progress_transit(num_segments * self.segment_length_minutes)
 
     def execute_action(self, action):
-        """ Actual implementation of execute action that mutates an instance of FleetState
-            This function is not meant to be called directly, but by the instance method defined above """
+        """Apply movements and advance the clock.
 
-        # Figure out if all the movements are on a route with demand
-        shortcut = True if len(action.movements) > 0 else False
+        Repositioning uses per-segment in-transit tracking. An all-demand action
+        may still use the multi-segment haul shortcut so the toy mine stays
+        solvable.
+        """
 
-        for m in action.movements:
-            s, d = (m.source, m.destination)
-            # If one of the movements is to a route without demand, then we can't do the shortcut
-            if (s, d) not in self.route_demands:
-                shortcut = False
-                break
-            # Also, if it is in a route with demand but it's already satisfied, can't do the shortcut
-            elif self.covered_demands[(s, d)] >= self.route_demands[(s, d)]:
-                shortcut = False
-                break
+        demand_only = len(action.movements) > 0
+        if demand_only:
+            for m in action.movements:
+                key = (m.source, m.destination)
+                if (
+                    key not in self.route_demands
+                    or self.covered_demands[key] >= self.route_demands[key]
+                ):
+                    demand_only = False
+                    break
 
-        # If we can't do the shortcut, only simulate one time segment
-        if not shortcut:
-            # Increase the segment by one
-            self.segment += 1
+        if demand_only:
+            self._execute_demand_shortcut(action)
+            return
 
-            # Iterate over each movement of the action
-            for movement in action.movements:
-                # Unpack the elements of the movement
-                truck, source, destination = movement.truck, movement.source, movement.destination
-                # Increment the trip counter for this truck that was reassigned
-                self.trips += 1
+        for movement in action.movements:
+            truck, source, destination = (
+                movement.truck,
+                movement.source,
+                movement.destination,
+            )
+            if truck in self.in_transit:
+                continue
+            if truck not in self.resident_trucks[source]:
+                continue
 
-                # If the destination is the endpoint of a route, don't change the location of the current truck,
-                # as the outcome of the action represents a round-trip from source to destination
-                if not (source, destination) in self.route_demands:
-                    # Change the location of truck on the fleet state
-                    self.resident_trucks[source].remove(truck)
-                    self.resident_trucks[destination].add(truck)
+            travel = self.config.travel_time(source, destination)
+            self.trips += travel
+            self.resident_trucks[source].remove(truck)
+            self.in_transit[truck] = (source, destination, travel)
 
-                # If it is, then we decrement the remaining demand to be covered
-                else:
-                    # Fetch the capacity of the truck
-                    capacity = truck.tonnage_capacity
-                    # Compute the remaining capacity
-                    remaining = self.route_demands[(source, destination)] - self.covered_demands[(source, destination)]
-                    # Increment the covered demand by the capacity or the remaining capacity
-                    self.covered_demands[(source, destination)] += min(capacity, remaining)
-
-        # This is the shortcut
-        else:
-            # Group the trucks to travel a route
-            groups = defaultdict(list)
-            for movement in action.movements:
-                truck, source, destination = movement.truck, movement.source, movement.destination
-                k = (source, destination)
-                groups[k].append(truck)
-
-            # Compute the remaining demand on each group
-            remaining_demand = {k: (self.route_demands[k] - self.covered_demands[k]) for k in groups}
-
-            # Figure out how many segments we can execute on this iteration
-            # The first candidate value is the remaining number of segments
-            candidate_segment_amounts = [self.max_segment - self.segment]
-            # Figure out how many segments can be executed for each group using the current subfleet assigned on each
-            for k in groups:
-                trucks = groups[k]
-                remaining = remaining_demand[k]
-                capacity = float(sum(t.tonnage_capacity for t in trucks))
-                segments = math.ceil(remaining / capacity)
-                # Add the amount of segments required to cover the demand of this route to the candidate pool
-                candidate_segment_amounts.append(segments)
-
-            # The actual number of segments to be simulated is the minimum of the pool
-            num_segments = min(candidate_segment_amounts)
-
-            # Simulate num_segments segments for each of the routes
-            for k in groups:
-                trucks = groups[k]
-                capacity = float(sum(t.tonnage_capacity for t in trucks))
-                self.covered_demands[k] += min(remaining_demand[k], (capacity * num_segments))
-                self.trips += (len(trucks) * num_segments)
-
-            # Finally, increase the segment counter by the chosen amount of segments that were simulated
-            self.segment += num_segments
+        # One segment elapses: clock advances by shift minutes / segment count
+        self.segment += 1
+        self.clock_minutes += self.segment_length_minutes
+        self._progress_transit(self.segment_length_minutes)
 
 
 class Movement(object):
