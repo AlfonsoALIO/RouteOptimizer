@@ -1,9 +1,11 @@
-"""Batch MILP runner over a MineScenario (one subproblem per directed arc)."""
+"""Batch MILP runner over a MineScenario (one flow for the whole mine)."""
 
 import math
 
-from core import ProblemResults
-from core.optimization import LinearProblem, solve
+from pulp import LpStatus
+
+from core import Parameters, ProblemResults
+from core.optimization import MineFlowProblem, is_optimal_status, solve_mine_flow
 
 
 def segment_count_for_arc(shift_length_hours, travel_time_minutes):
@@ -11,27 +13,65 @@ def segment_count_for_arc(shift_length_hours, travel_time_minutes):
     return int(math.ceil(float(shift_length_hours) * 60.0 / float(travel_time_minutes)))
 
 
-def run_batch(scenario, job_name="TestJob", persist=True):
-    """Solve one LinearProblem per directed arc in the scenario.
+def default_num_segments(scenario, shift_length_hours=None):
+    """Segment count from shift length and the shortest arc travel time."""
+    shift = (
+        float(shift_length_hours)
+        if shift_length_hours is not None
+        else float(scenario.shift_length_hours)
+    )
+    min_travel = min(float(arc["travel_time_minutes"]) for arc in scenario.arcs)
+    return segment_count_for_arc(shift, min_travel)
 
-    Fleet size and shift length come from the scenario. The current per-arc
-    tonnage constraint (demand 1, capacity 100) is unchanged.
+
+def demand_schedule_from_scenario(scenario, num_segments):
+    """Split each scenario demand arc's total tons evenly across segments."""
+    schedule = {}
+    for demand in scenario.demands:
+        key = (demand["source"], demand["destination"])
+        total = float(demand["tons"])
+        per = total / float(num_segments)
+        schedule[key] = [per] * int(num_segments)
+    return schedule
+
+
+def parameters_from_scenario(scenario, num_segments=None):
+    """Build Parameters from a scenario (even demand split, scenario shift length)."""
+    if num_segments is None:
+        num_segments = default_num_segments(scenario)
+    return Parameters(
+        tonnage_demand=demand_schedule_from_scenario(scenario, num_segments),
+        shift_length=scenario.shift_length_hours,
+        num_segments=num_segments,
+    )
+
+
+def run_batch(scenario, params=None, job_name="TestJob", persist=True, num_segments=None):
+    """Solve one mine-wide truck-flow model for the scenario.
+
+    ``params`` supplies shift length and per-arc/segment tonnage demand.
+    When omitted, parameters are derived from the scenario.
+
+    Returns a single ProblemResults for the whole mine (not one per arc).
+    Infeasible runs report status and are not persisted as a success.
     """
-    results = {}
-    for arc in scenario.arcs:
-        name = (arc["source"], arc["destination"])
-        problem = LinearProblem(
-            name,
-            scenario.fleet_size,
-            arc["travel_time_minutes"],
-            scenario.shift_length_hours,
-        )
-        status, variables = solve(problem)
-        results[name] = ProblemResults(status, variables)
+    if params is None:
+        params = parameters_from_scenario(scenario, num_segments=num_segments)
+    elif not isinstance(params, Parameters):
+        raise ValueError("missing required field: parameters")
 
-    if persist:
+    problem = MineFlowProblem.from_scenario(
+        scenario, params=params, num_segments=num_segments
+    )
+    status, variables = solve_mine_flow(problem)
+    result = ProblemResults(status, variables)
+    result.problem = problem
+    result.status_name = LpStatus[status]
+    result.optimal = is_optimal_status(status)
+
+    if persist and result.optimal:
         import core.data_access as da
 
-        da.persist_results(job_name, results)
+        da.persist_results(job_name, {"mine_flow": result})
 
-    return results
+    return result
