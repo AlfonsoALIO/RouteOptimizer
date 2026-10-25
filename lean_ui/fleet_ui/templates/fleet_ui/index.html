@@ -52,11 +52,11 @@
 <form action="/fleet/" method="post">
     {% csrf_token %}
     {{ form.as_p }}
-    <input type="submit" value="Simulate" />
+    <input type="submit" value="Run plan" />
 </form>
 <br />
 {% if ran and simulation %}
-    <h2>Output</h2>
+    <h2>Revised plan</h2>
     {% for s in steps %}
         {{ s }} <br />
     {% endfor %}

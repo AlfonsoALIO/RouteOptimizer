@@ -45,6 +45,8 @@ class FleetState(object):
             self.segment_length_minutes = (
                 self.shift_length_hours * 60.0 / float(max_segment)
             )
+            # End of the active planning window (defaults to full shift)
+            self.planning_horizon_end = max_segment
 
             self.garage = list(filter(lambda l: l.name == "garage", config.locations()))[0]
 
@@ -183,6 +185,7 @@ class FleetState(object):
         cl.segment = self.segment
         cl.clock_minutes = self.clock_minutes
         cl.segment_length_minutes = self.segment_length_minutes
+        cl.planning_horizon_end = self.planning_horizon_end
         cl.garage = self.garage
         cl.max_capacity = self.max_capacity
         cl.num_effective_routes = self.num_effective_routes
@@ -264,9 +267,12 @@ class FleetState(object):
                 destinations_without_demand.append(d)
 
         for d in destinations_with_demand:
+            if d.resident_capacity <= 0:
+                continue
             key = (src, d)
             if self.covered_demands[key] < self.route_demands[key]:
                 remaining_demand = self.route_demands[key] - self.covered_demands[key]
+                # Demand hauls do not occupy the destination; capacity gates concurrency.
                 for _ in range(d.resident_capacity):
                     if remaining_demand > 0 and len(local_trucks) > 0:
                         t = local_trucks.pop()
@@ -277,6 +283,8 @@ class FleetState(object):
 
         eligible_ds = []
         for d in destinations_without_demand:
+            if self._open_slots(d) <= 0:
+                continue
             for d2 in config.destinations(d):
                 key = (d, d2)
                 if key in self.route_demands:
@@ -287,7 +295,7 @@ class FleetState(object):
 
         for d in eligible_ds:
             if len(local_trucks) > 0:
-                num_slots = d.resident_capacity - len(self.resident_trucks[d])
+                num_slots = self._open_slots(d)
                 for _ in range(num_slots):
                     if not local_trucks:
                         break
@@ -298,6 +306,8 @@ class FleetState(object):
 
         if src != self.garage:
             for t in local_trucks:
+                if self._open_slots(self.garage) <= 0:
+                    break
                 movements.append(Movement(t, src, self.garage))
 
         return movements
@@ -306,6 +316,8 @@ class FleetState(object):
         """Destinations from src that still have uncovered haul demand."""
         open_ds = []
         for d in sorted(self.config.destinations(src), key=lambda l: l.name):
+            if d.resident_capacity <= 0:
+                continue
             key = (src, d)
             if key in self.route_demands and self.covered_demands[key] < self.route_demands[key]:
                 open_ds.append(d)
@@ -320,7 +332,7 @@ class FleetState(object):
         moves), plus idle and return-to-garage.
         """
 
-        if self.segment >= self.max_segment:
+        if self.segment >= self.planning_horizon_end:
             return list()
 
         occupied = sorted(
@@ -369,9 +381,9 @@ class FleetState(object):
             if branch:
                 add_action(Action(*branch))
 
-        if src != self.garage and local_trucks:
+        if src != self.garage and local_trucks and self._open_slots(self.garage) > 0:
             garage_moves = self._assign_by_capacity_class(
-                local_trucks, src, self.garage, len(local_trucks)
+                local_trucks, src, self.garage, self._open_slots(self.garage)
             )
             if garage_moves:
                 add_action(Action(*garage_moves))
@@ -412,7 +424,10 @@ class FleetState(object):
         remaining_demand = {
             k: (self.route_demands[k] - self.covered_demands[k]) for k in groups
         }
-        candidate_segment_amounts = [self.max_segment - self.segment]
+        candidate_segment_amounts = [
+            self.max_segment - self.segment,
+            self.planning_horizon_end - self.segment,
+        ]
         for k in groups:
             trucks = groups[k]
             capacity = float(sum(t.tonnage_capacity for t in trucks))
