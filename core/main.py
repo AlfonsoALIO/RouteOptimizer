@@ -67,16 +67,23 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
-    params = Parameters(tonnage_demand=50, shift_length=12)
-
     if args.toy or not os.environ.get("SQLSERVER_PASSWORD"):
         scenario = load_toy_mine()
+        from core.batch import parameters_from_scenario
+
+        params = parameters_from_scenario(scenario)
     else:
         fleet_size = args.fleet_size if args.fleet_size is not None else 29
+        params = Parameters(tonnage_demand={}, shift_length=12)
         params.fleet_size = fleet_size
         scenario = scenario_from_sql(params, loaders=args.loaders)
+        from core.batch import parameters_from_scenario
 
-    return run_batch(scenario, job_name=args.job_name, persist=not args.no_persist)
+        params = parameters_from_scenario(scenario)
+
+    return run_batch(
+        scenario, params=params, job_name=args.job_name, persist=not args.no_persist
+    )
 
 
 if __name__ == "__main__":

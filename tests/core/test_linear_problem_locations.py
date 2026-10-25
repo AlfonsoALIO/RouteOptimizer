@@ -13,6 +13,8 @@ def test_locations_are_arc_endpoints():
         fleet_size=5,
         travel_time_minutes=60.0,
         shift_length_hours=10.0,
+        truck_capacity=100.0,
+        segment_demand=[0.0] * 10,
     )
 
     assert problem.locations == ("SRC", "DST")
@@ -26,6 +28,8 @@ def test_formulation_builds_and_iterates_locations():
         fleet_size=5,
         travel_time_minutes=120.0,
         shift_length_hours=10.0,
+        truck_capacity=50.0,
+        segment_demand=[50.0] * 5,
     )
 
     status, variables = solve(problem)
@@ -43,4 +47,6 @@ def test_non_positive_travel_time_fails_at_construction():
             fleet_size=5,
             travel_time_minutes=0,
             shift_length_hours=10.0,
+            truck_capacity=100.0,
+            segment_demand=[0.0],
         )
