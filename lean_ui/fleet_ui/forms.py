@@ -4,6 +4,7 @@ from django import forms
 
 from core.fixtures import load_toy_mine
 from core.scenario import ScenarioError, load_scenario
+from core_search.replan import CHANGE_TYPES, CLOSE_SHOVEL, EDIT_DEMAND, FULL_QUEUE
 
 
 def _json_dumps(value):
@@ -45,6 +46,53 @@ class FleetConfigurationForm(forms.Form):
         label="Number of trucks",
         min_value=1,
     )
+    plan_mode = forms.ChoiceField(
+        label="Plan mode",
+        choices=(
+            ("simulate", "Full-shift simulate"),
+            ("replan", "Replan next k segments"),
+        ),
+        initial="simulate",
+    )
+    replan_k = forms.IntegerField(
+        label="Replan horizon (k segments)",
+        min_value=0,
+        required=False,
+        initial=5,
+    )
+    change_type = forms.ChoiceField(
+        label="Mine change",
+        choices=(
+            ("", "None"),
+            (CLOSE_SHOVEL, "Close shovel (capacity 0)"),
+            (FULL_QUEUE, "Full queue (freeze occupancy)"),
+            (EDIT_DEMAND, "Edit demand"),
+        ),
+        required=False,
+        initial="",
+    )
+    change_location = forms.CharField(
+        label="Change location (close shovel / full queue)",
+        required=False,
+    )
+    change_demand_source = forms.CharField(
+        label="Demand source (edit demand)",
+        required=False,
+    )
+    change_demand_destination = forms.CharField(
+        label="Demand destination (edit demand)",
+        required=False,
+    )
+    change_demand_tons = forms.FloatField(
+        label="Demand tons (edit demand)",
+        required=False,
+        min_value=0,
+    )
+    current_fleet_json = forms.CharField(
+        label="Current fleet snapshot (JSON: segment, residents, in_transit)",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 8, "cols": 60}),
+    )
 
     @classmethod
     def initial_from_toy_mine(cls):
@@ -58,6 +106,14 @@ class FleetConfigurationForm(forms.Form):
             "fleet_size": scenario.fleet_size,
             "num_segments": 58,
             "num_trucks": scenario.fleet_size,
+            "plan_mode": "simulate",
+            "replan_k": 5,
+            "change_type": "",
+            "change_location": "",
+            "change_demand_source": "",
+            "change_demand_destination": "",
+            "change_demand_tons": None,
+            "current_fleet_json": "",
         }
 
     @classmethod
@@ -107,4 +163,34 @@ class FleetConfigurationForm(forms.Form):
             raise forms.ValidationError(str(exc))
 
         cleaned["_scenario"] = scenario
+
+        plan_mode = cleaned.get("plan_mode") or "simulate"
+        change_type = cleaned.get("change_type") or ""
+        fleet_json = (cleaned.get("current_fleet_json") or "").strip()
+        cleaned["_fleet_snapshot"] = None
+        if fleet_json:
+            try:
+                cleaned["_fleet_snapshot"] = json.loads(fleet_json)
+            except (TypeError, ValueError) as exc:
+                raise forms.ValidationError("invalid current fleet JSON: %s" % exc)
+
+        if plan_mode == "replan":
+            if cleaned.get("replan_k") is None:
+                raise forms.ValidationError("replan_k is required for replan mode")
+            if change_type and change_type not in CHANGE_TYPES:
+                raise forms.ValidationError("unknown change type: %s" % change_type)
+            if change_type in (CLOSE_SHOVEL, FULL_QUEUE) and not cleaned.get("change_location"):
+                raise forms.ValidationError(
+                    "change_location is required for %s" % change_type
+                )
+            if change_type == EDIT_DEMAND:
+                if not cleaned.get("change_demand_source") or not cleaned.get(
+                    "change_demand_destination"
+                ):
+                    raise forms.ValidationError(
+                        "edit_demand requires change_demand_source and change_demand_destination"
+                    )
+                if cleaned.get("change_demand_tons") is None:
+                    raise forms.ValidationError("edit_demand requires change_demand_tons")
+
         return cleaned
