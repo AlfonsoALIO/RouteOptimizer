@@ -27,6 +27,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/AlfonsoALIO/RouteOptimizer"
 Documentation = "https://www.alioit.com/route-optimizer"
+PyPI = "https://pypi.org/project/route-optimizer/"
 "Hugging Face" = "https://huggingface.co/albones80/route-optimizer"
 "Hugging Face Space" = "https://huggingface.co/spaces/albones80/route-optimizer-demo"
 "alioit.com" = "https://www.alioit.com/route-optimizer"

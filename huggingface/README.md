@@ -82,7 +82,7 @@ SQL Server or the network at run time.
 ### pip package
 
 ```bash
-pip install "git+https://github.com/AlfonsoALIO/RouteOptimizer.git"
+pip install route-optimizer
 ```
 
 Interactive demo: [Hugging Face Space](https://huggingface.co/spaces/albones80/route-optimizer-demo) ·
