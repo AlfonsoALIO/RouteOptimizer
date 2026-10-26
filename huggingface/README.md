@@ -82,17 +82,11 @@ SQL Server or the network at run time.
 ### pip package
 
 ```bash
-pip install route-optimizer
+pip install "git+https://github.com/AlfonsoALIO/RouteOptimizer.git"
 ```
 
-Or from the [GitHub repository](https://github.com/AlfonsoALIO/RouteOptimizer):
-
-```bash
-pip install "PuLP>=2.7,<3"
-pip install git+https://github.com/AlfonsoALIO/RouteOptimizer.git
-```
-
-Interactive demo: [Hugging Face Space](https://huggingface.co/spaces/albones80/route-optimizer-demo).
+Interactive demo: [Hugging Face Space](https://huggingface.co/spaces/albones80/route-optimizer-demo) ·
+[Colab notebook](https://colab.research.google.com/github/AlfonsoALIO/RouteOptimizer/blob/master/notebooks/route_optimizer_demo.ipynb).
 
 Console scripts: `route-optimizer`, `route-optimizer-dispatch`,
 `route-optimizer-shift-plan`.

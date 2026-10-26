@@ -19,12 +19,13 @@ scenario = load_scenario_file("samples/toy_mine.json")
 Install the package (PuLP/CBC only — no commercial solver license):
 
 ```bash
-pip install route-optimizer
+pip install "git+https://github.com/AlfonsoALIO/RouteOptimizer.git"
 # or from a clone: pip install .
 # editable: pip install -e .
+# PyPI: ./scripts/publish_pypi.sh after setting a PyPI API token
 ```
 
-Interactive demo: [Hugging Face Space](https://huggingface.co/spaces/albones80/route-optimizer-demo).
+Interactive demo: [Hugging Face Space](https://huggingface.co/spaces/albones80/route-optimizer-demo) · [Colab](https://colab.research.google.com/github/AlfonsoALIO/RouteOptimizer/blob/master/notebooks/route_optimizer_demo.ipynb).
 
 ```bash
 route-optimizer dispatch samples/tiny_feasible.json -o out/dispatch.json
