@@ -1,0 +1,36 @@
+{
+  "feature_names": [
+    "segment_frac",
+    "demand_remaining_frac",
+    "trucks_in_garage_frac",
+    "trucks_in_transit_frac",
+    "heuristic_shift_frac",
+    "open_routes_frac",
+    "action_is_idle",
+    "movements_per_truck",
+    "demand_move_frac",
+    "to_garage_frac",
+    "from_garage_frac",
+    "travel_shift_frac",
+    "destination_frac"
+  ],
+  "hidden": [
+    16,
+    8
+  ],
+  "holdout_decision_accuracy": 0.9065,
+  "holdout_greedy_baseline_accuracy": 0.5607,
+  "license": "mit",
+  "model_type": "dispatch-policy-mlp",
+  "n_holdout_decisions": 107,
+  "n_holdout_rows": 214,
+  "n_train_decisions": 406,
+  "n_train_rows": 817,
+  "note": "Scores legal dispatch actions. Does not prove optimality.",
+  "scenarios_skipped": 11,
+  "scenarios_solved": 95,
+  "task": "imitate A* legal-action choice",
+  "teacher": "core_search A*",
+  "train_decision_accuracy": 0.9409,
+  "trained_on": "synthetic format-v1 mine scenarios"
+}

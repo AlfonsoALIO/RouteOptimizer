@@ -41,14 +41,35 @@ def _heuristic(state):
     return minutes_remaining
 
 
-def run(num_segments=58, num_trucks=21, listener=None, scenario=None):
-    """Run the dispatcher on a scenario (defaults to the toy-mine fixture)."""
+def run(
+    num_segments=58,
+    num_trucks=21,
+    listener=None,
+    scenario=None,
+    time_limit_seconds=None,
+):
+    """Run the dispatcher on a scenario (defaults to the toy-mine fixture).
+
+    Optional ``time_limit_seconds`` stops the search early. The stop reason is
+    available as ``run.last_stop_reason`` (``optimal``, ``exhausted``, or
+    ``time_limit``).
+    """
     if scenario is None:
         scenario = load_toy_mine()
 
     initial_state = fleet_state_from_scenario(scenario, num_segments, num_trucks)
-    searcher = AStar(initial_state, _heuristic, listener)
-    return searcher.solve()
+    searcher = AStar(
+        initial_state,
+        _heuristic,
+        listener,
+        time_limit_seconds=time_limit_seconds,
+    )
+    solution = searcher.solve()
+    run.last_stop_reason = searcher.stop_reason
+    return solution
+
+
+run.last_stop_reason = None
 
 
 if __name__ == "__main__":

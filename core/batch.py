@@ -5,7 +5,12 @@ import math
 from pulp import LpStatus
 
 from core import Parameters, ProblemResults
-from core.optimization import MineFlowProblem, is_optimal_status, solve_mine_flow
+from core.optimization import (
+    MineFlowProblem,
+    is_optimal_status,
+    solve_mine_flow,
+    status_suggests_time_limit,
+)
 
 
 def segment_count_for_arc(shift_length_hours, travel_time_minutes):
@@ -46,7 +51,14 @@ def parameters_from_scenario(scenario, num_segments=None):
     )
 
 
-def run_batch(scenario, params=None, job_name="TestJob", persist=True, num_segments=None):
+def run_batch(
+    scenario,
+    params=None,
+    job_name="TestJob",
+    persist=True,
+    num_segments=None,
+    time_limit_seconds=None,
+):
     """Solve one mine-wide truck-flow model for the scenario.
 
     ``params`` supplies shift length and per-arc/segment tonnage demand.
@@ -54,6 +66,7 @@ def run_batch(scenario, params=None, job_name="TestJob", persist=True, num_segme
 
     Returns a single ProblemResults for the whole mine (not one per arc).
     Infeasible runs report status and are not persisted as a success.
+    With ``time_limit_seconds``, a stopped solve is not marked proven optimal.
     """
     if params is None:
         params = parameters_from_scenario(scenario, num_segments=num_segments)
@@ -63,13 +76,19 @@ def run_batch(scenario, params=None, job_name="TestJob", persist=True, num_segme
     problem = MineFlowProblem.from_scenario(
         scenario, params=params, num_segments=num_segments
     )
-    status, variables = solve_mine_flow(problem)
+    status, variables = solve_mine_flow(
+        problem, time_limit_seconds=time_limit_seconds
+    )
     result = ProblemResults(status, variables)
     result.problem = problem
     result.status_name = LpStatus[status]
-    result.optimal = is_optimal_status(status)
+    result.proven_optimal = is_optimal_status(status)
+    result.optimal = result.proven_optimal
+    result.time_limit_reached = status_suggests_time_limit(
+        status, time_limit_seconds
+    )
 
-    if persist and result.optimal:
+    if persist and result.proven_optimal:
         import core.data_access as da
 
         da.persist_results(job_name, {"mine_flow": result})

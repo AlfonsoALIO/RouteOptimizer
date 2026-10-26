@@ -4,3 +4,10 @@ venv
 .venv
 .vscode
 .env
+build/
+dist/
+*.egg-info/
+out/
+.pytest_cache/
+__pycache__/
+tmp/

@@ -245,12 +245,15 @@ class MineFlowProblem(object):
         )
 
 
-def solve_mine_flow(problem):
+def solve_mine_flow(problem, time_limit_seconds=None):
     """Solve the whole-mine flow. Returns (status, variables).
 
     variables keys:
       inventory: loc -> list of LpVariable for t = 0..num_segments
       flow: (src, dst) -> list of LpVariable for departures at t = 0..num_segments-1
+
+    time_limit_seconds: optional CBC wall-clock limit; when the limit hits,
+    status may be non-optimal even if a feasible plan exists.
     """
     instance = LpProblem("Mine_Flow", LpMinimize)
 
@@ -362,7 +365,10 @@ def solve_mine_flow(problem):
             fleet,
         )
 
-    status = instance.solve(PULP_CBC_CMD(msg=0))
+    solver_kwargs = {"msg": 0}
+    if time_limit_seconds is not None:
+        solver_kwargs["timeLimit"] = float(time_limit_seconds)
+    status = instance.solve(PULP_CBC_CMD(**solver_kwargs))
     variables = {"inventory": inventory, "flow": flow}
     return status, variables
 
@@ -385,3 +391,11 @@ def flow_values(variables):
 
 def is_optimal_status(status):
     return LpStatus[status] == "Optimal"
+
+
+def status_suggests_time_limit(status, time_limit_seconds):
+    """True when a time limit was set and the solver did not prove optimality."""
+    if time_limit_seconds is None:
+        return False
+    name = LpStatus[status]
+    return name not in ("Optimal", "Infeasible", "Unbounded")

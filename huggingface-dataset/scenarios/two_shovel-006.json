@@ -1,0 +1,121 @@
+{
+  "arcs": [
+    {
+      "destination": "S1",
+      "source": "garage",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "garage",
+      "source": "S1",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "C",
+      "source": "S1",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "S1",
+      "source": "C",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "S2",
+      "source": "garage",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "garage",
+      "source": "S2",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "C",
+      "source": "S2",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "S2",
+      "source": "C",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "garage",
+      "source": "C",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "C",
+      "source": "garage",
+      "travel_time_minutes": 15.0
+    }
+  ],
+  "demands": [
+    {
+      "destination": "C",
+      "source": "S1",
+      "tons": 400.0
+    },
+    {
+      "destination": "C",
+      "source": "S2",
+      "tons": 200.0
+    }
+  ],
+  "fleet_size": 8,
+  "format_version": "1",
+  "locations": [
+    {
+      "name": "garage",
+      "resident_capacity": 8
+    },
+    {
+      "name": "S1",
+      "resident_capacity": 2
+    },
+    {
+      "name": "S2",
+      "resident_capacity": 2
+    },
+    {
+      "name": "C",
+      "resident_capacity": 2
+    }
+  ],
+  "shift_length_hours": 8.0,
+  "trucks": [
+    {
+      "name": "truck_1",
+      "tonnage_capacity": 100.0
+    },
+    {
+      "name": "truck_2",
+      "tonnage_capacity": 100.0
+    },
+    {
+      "name": "truck_3",
+      "tonnage_capacity": 100.0
+    },
+    {
+      "name": "truck_4",
+      "tonnage_capacity": 100.0
+    },
+    {
+      "name": "truck_5",
+      "tonnage_capacity": 100.0
+    },
+    {
+      "name": "truck_6",
+      "tonnage_capacity": 100.0
+    },
+    {
+      "name": "truck_7",
+      "tonnage_capacity": 100.0
+    },
+    {
+      "name": "truck_8",
+      "tonnage_capacity": 100.0
+    }
+  ]
+}

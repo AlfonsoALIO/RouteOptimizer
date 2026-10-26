@@ -1,5 +1,7 @@
 """ This file contains an implementation of search algorithms """
-import sys, heapq
+import sys
+import heapq
+import time
 
 
 class Node(object):
@@ -67,16 +69,33 @@ def enqueue_or_decrease(queue, child):
 
 class AStar(object):
 
-    def __init__(self, initial_state, heuristic = lambda s: 0, listener = None):
-        """ Parameters: initial_state: First step of the search """
+    def __init__(
+        self,
+        initial_state,
+        heuristic=lambda s: 0,
+        listener=None,
+        time_limit_seconds=None,
+    ):
+        """Parameters: initial_state: First step of the search.
+
+        time_limit_seconds: optional wall-clock cap; when reached, solve stops
+        without claiming an optimal dispatch.
+        """
         self.initial_state = initial_state
         self.heuristic = heuristic
         self.best = None
         self.saturation = 0.0
         self.listener = listener
+        self.time_limit_seconds = (
+            None if time_limit_seconds is None else float(time_limit_seconds)
+        )
+        self.stop_reason = None
 
     def solve(self):
-        """ Does a Uniform Cost Search and returns a reference to a node containing an optimal solution """
+        """Uniform-cost / A* search. Returns a goal node, or None.
+
+        Sets ``stop_reason`` to ``optimal``, ``exhausted``, or ``time_limit``.
+        """
 
         # Root of the search tree
         root = Node(self.initial_state)
@@ -92,12 +111,21 @@ class AStar(object):
 
         # Reference to the solution, currently empty
         solution = None
+        self.stop_reason = None
 
         # Number of iterations
         num = 0
+        started = time.monotonic()
 
         # Main loop of UCS
         while solution is None and len(queue) > 0:
+            if (
+                self.time_limit_seconds is not None
+                and (time.monotonic() - started) >= self.time_limit_seconds
+            ):
+                self.stop_reason = "time_limit"
+                return None
+
             num += 1
 
             # Fetch the next node to consider
@@ -139,6 +167,11 @@ class AStar(object):
                         continue
 
                     enqueue_or_decrease(queue, child)
+
+        if solution is not None:
+            self.stop_reason = "optimal"
+        elif self.stop_reason is None:
+            self.stop_reason = "exhausted"
 
         # Return the solution, if found
         return solution

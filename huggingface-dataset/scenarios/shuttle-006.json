@@ -1,0 +1,76 @@
+{
+  "arcs": [
+    {
+      "destination": "S",
+      "source": "garage",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "garage",
+      "source": "S",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "C",
+      "source": "S",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "S",
+      "source": "C",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "garage",
+      "source": "C",
+      "travel_time_minutes": 15.0
+    },
+    {
+      "destination": "C",
+      "source": "garage",
+      "travel_time_minutes": 15.0
+    }
+  ],
+  "demands": [
+    {
+      "destination": "C",
+      "source": "S",
+      "tons": 400.0
+    }
+  ],
+  "fleet_size": 4,
+  "format_version": "1",
+  "locations": [
+    {
+      "name": "garage",
+      "resident_capacity": 4
+    },
+    {
+      "name": "S",
+      "resident_capacity": 2
+    },
+    {
+      "name": "C",
+      "resident_capacity": 2
+    }
+  ],
+  "shift_length_hours": 4.0,
+  "trucks": [
+    {
+      "name": "truck_1",
+      "tonnage_capacity": 100.0
+    },
+    {
+      "name": "truck_2",
+      "tonnage_capacity": 100.0
+    },
+    {
+      "name": "truck_3",
+      "tonnage_capacity": 100.0
+    },
+    {
+      "name": "truck_4",
+      "tonnage_capacity": 100.0
+    }
+  ]
+}

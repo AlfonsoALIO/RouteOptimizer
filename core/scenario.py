@@ -4,7 +4,16 @@ Units:
   - demand and truck capacity: tons
   - shift length: hours
   - arc travel time: minutes
+
+File format version: see SCENARIO_FORMAT_VERSION and docs/scenario-format.md.
 """
+
+import json
+from pathlib import Path
+
+# Documented scenario file format version (Story 6.2).
+SCENARIO_FORMAT_VERSION = "1"
+SUPPORTED_FORMAT_VERSIONS = frozenset({SCENARIO_FORMAT_VERSION})
 
 REQUIRED_FIELDS = (
     "locations",
@@ -38,6 +47,7 @@ class MineScenario(object):
         trucks,
         shift_length_hours,
         fleet_size,
+        format_version=SCENARIO_FORMAT_VERSION,
     ):
         self.locations = locations
         self.arcs = arcs
@@ -45,6 +55,19 @@ class MineScenario(object):
         self.trucks = trucks
         self.shift_length_hours = shift_length_hours
         self.fleet_size = fleet_size
+        self.format_version = format_version
+
+    def to_payload(self):
+        """Return a JSON-serializable mapping in the documented file format."""
+        return {
+            "format_version": self.format_version,
+            "locations": list(self.locations),
+            "arcs": list(self.arcs),
+            "demands": list(self.demands),
+            "trucks": list(self.trucks),
+            "shift_length_hours": self.shift_length_hours,
+            "fleet_size": self.fleet_size,
+        }
 
 
 def _require_mapping(payload):
@@ -181,12 +204,32 @@ def _normalize_locations(locations):
     return normalized
 
 
-def load_scenario(payload):
+def _normalize_format_version(payload, require_version=False):
+    if "format_version" not in payload:
+        if require_version:
+            raise ScenarioError("missing required field: format_version")
+        return SCENARIO_FORMAT_VERSION
+
+    version = payload["format_version"]
+    if version is None or str(version) == "":
+        raise ScenarioError("missing required field: format_version")
+
+    version = str(version)
+    if version not in SUPPORTED_FORMAT_VERSIONS:
+        raise ScenarioError("unsupported format version: %s" % version)
+    return version
+
+
+def load_scenario(payload, require_format_version=False):
     """Load and validate a scenario mapping.
 
-    Raises ScenarioError naming a missing field or unknown location.
+    Raises ScenarioError naming a missing field, unknown location, or
+    unsupported format version.
     """
     _require_mapping(payload)
+    format_version = _normalize_format_version(
+        payload, require_version=require_format_version
+    )
     _require_fields(payload)
 
     known = _location_names(payload["locations"])
@@ -210,4 +253,30 @@ def load_scenario(payload):
         trucks=trucks,
         shift_length_hours=float(shift_length_hours),
         fleet_size=int(fleet_size),
+        format_version=format_version,
     )
+
+
+def load_scenario_file(path):
+    """Load a scenario JSON file in the documented format (version required)."""
+    path = Path(path)
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise ScenarioError("invalid scenario JSON: %s" % exc) from exc
+    except OSError as exc:
+        raise ScenarioError("cannot read scenario file: %s" % exc) from exc
+
+    return load_scenario(payload, require_format_version=True)
+
+
+def write_scenario_file(scenario, path):
+    """Write a MineScenario to a JSON file in the documented format."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = scenario.to_payload()
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    return path

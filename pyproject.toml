@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "route-optimizer"
+version = "0.1.0"
+description = "Fleet and route optimization for mining: A* dispatch and MILP shift plans"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Alfonso Bonillas", email = "info@alioit.com" },
+]
+requires-python = ">=3.9"
+keywords = ["mining", "fleet", "optimization", "dispatch", "MILP"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+    # PuLP 3.x imports HiGHS and requires NumPy at import time; stay on 2.x for CBC-only.
+    "PuLP>=2.7,<3",
+    "numpy>=1.24",
+]
+
+[project.urls]
+Homepage = "https://github.com/AlfonsoALIO/RouteOptimizer"
+Documentation = "https://www.alioit.com/route-optimizer"
+"Hugging Face" = "https://huggingface.co/albones80/route-optimizer"
+"Hugging Face Space" = "https://huggingface.co/spaces/albones80/route-optimizer-demo"
+"alioit.com" = "https://www.alioit.com/route-optimizer"
+Repository = "https://github.com/AlfonsoALIO/RouteOptimizer"
+Issues = "https://github.com/AlfonsoALIO/RouteOptimizer/issues"
+
+[project.scripts]
+route-optimizer = "route_optimizer.cli:main"
+route-optimizer-dispatch = "route_optimizer.cli:dispatch_main"
+route-optimizer-shift-plan = "route_optimizer.cli:shift_plan_main"
+
+[tool.setuptools.packages.find]
+include = ["core*", "core_search*", "route_optimizer*"]
+
+[tool.setuptools.package-data]
+core = ["fixtures/*.py"]
+route_optimizer = ["dispatch_policy_weights.npz", "dispatch_policy_config.json"]

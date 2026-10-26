@@ -1,6 +1,6 @@
 """Named toy-mine scenario fixture used by the fleet UI dispatcher."""
 
-from core.scenario import load_scenario
+from core.scenario import SCENARIO_FORMAT_VERSION, load_scenario
 
 TOY_MINE_NAME = "toy_mine"
 
@@ -81,6 +81,7 @@ def toy_mine_payload():
     ]
 
     return {
+        "format_version": SCENARIO_FORMAT_VERSION,
         "locations": locations,
         "arcs": arcs,
         "demands": demands,
