@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RouteOptimizer — open-source mine fleet ML</title>
+  <style>
+    :root {
+      --bg: #0f1210;
+      --panel: #1a211c;
+      --text: #e8efe9;
+      --muted: #9aab9f;
+      --accent: #e0a12b;
+      --line: #2c362f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, #243028, var(--bg));
+      color: var(--text);
+      line-height: 1.55;
+    }
+    main {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      margin: 0 0 0.4rem;
+      letter-spacing: -0.02em;
+    }
+    .eyebrow {
+      color: var(--accent);
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+    .lead { color: var(--muted); font-size: 1.1rem; max-width: 40rem; }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin: 1.5rem 0 2rem;
+    }
+    a.btn {
+      display: inline-block;
+      padding: 0.7rem 1.1rem;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      border: 1px solid var(--line);
+      color: var(--text);
+      background: var(--panel);
+    }
+    a.btn.primary {
+      background: var(--accent);
+      color: #1a1204;
+      border-color: var(--accent);
+    }
+    .demo {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      display: block;
+      background: #000;
+    }
+    .cap { color: var(--muted); font-size: 0.9rem; margin-top: 0.6rem; }
+    pre {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      overflow-x: auto;
+      font-size: 0.92rem;
+    }
+    code { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+    h2 { margin-top: 2.25rem; font-size: 1.25rem; }
+    ul { color: var(--muted); padding-left: 1.2rem; }
+    li { margin: 0.35rem 0; }
+    footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.9rem; }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">Hugging Face · Alio IT</div>
+    <h1>RouteOptimizer</h1>
+    <p class="lead">
+      An open-source <strong>machine-learning model for mine fleet dispatch</strong>,
+      plus A* and CBC solvers that still produce the proven plans.
+    </p>
+    <div class="actions">
+      <a class="btn primary" href="https://colab.research.google.com/github/AlfonsoALIO/RouteOptimizer/blob/master/notebooks/route_optimizer_demo.ipynb" target="_blank" rel="noopener">Run in Colab</a>
+      <a class="btn" href="https://huggingface.co/albones80/route-optimizer" target="_blank" rel="noopener">Model card</a>
+      <a class="btn" href="https://github.com/AlfonsoALIO/RouteOptimizer" target="_blank" rel="noopener">GitHub</a>
+      <a class="btn" href="https://www.alioit.com/route-optimizer" target="_blank" rel="noopener">alioit.com</a>
+    </div>
+
+    <img class="demo" src="demo-cli.gif" alt="RouteOptimizer CLI: scenario file in, dispatch and shift plan JSON out" width="1280" height="720" />
+    <p class="cap">CLI demo: scenario JSON in → dispatch / shift-plan JSON out.</p>
+
+    <h2>Install</h2>
+    <pre><code>pip install route-optimizer
+
+route-optimizer dispatch samples/tiny_feasible.json -o out/dispatch.json --segments 8 --trucks 2
+route-optimizer shift-plan samples/tiny_feasible.json -o out/shift_plan.json --segments 4</code></pre>
+
+    <h2>What’s in the release</h2>
+    <ul>
+      <li><strong>ML dispatch policy</strong> — small network that imitates A* among legal moves (~91% holdout vs ~56% greedy).</li>
+      <li><strong>A* dispatch</strong> — truck movement plan over a shift.</li>
+      <li><strong>MILP shift plan</strong> — PuLP + open-source CBC (no Gurobi/CPLEX).</li>
+      <li><strong>MIT license</strong> — offline JSON I/O; no live telematics in this release.</li>
+    </ul>
+
+    <footer>
+      Alfonso Bonillas / <a href="https://www.alioit.com/route-optimizer">Alio IT</a> ·
+      <a href="https://huggingface.co/datasets/albones80/route-optimizer-scenarios">Synthetic scenarios</a> ·
+      White paper on <a href="https://www.alioit.com/white-papers/">alioit.com/white-papers</a>
+    </footer>
+  </main>
+</body>
+</html>

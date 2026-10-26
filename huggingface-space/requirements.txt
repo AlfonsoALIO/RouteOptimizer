@@ -1,4 +1,2 @@
-gradio>=4.44,<5
-numpy>=1.24
-PuLP>=2.7,<3
-route-optimizer @ git+https://github.com/AlfonsoALIO/RouteOptimizer.git
+# Static Space — no Python runtime deps.
+# Interactive runs use the Colab notebook linked from index.html.

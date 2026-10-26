@@ -32,12 +32,12 @@ username = api.whoami()["name"]
 repo_id = os.environ.get("HF_SPACE_REPO_ID") or ("%s/route-optimizer-demo" % username)
 print("Publishing Space as %s → %s" % (username, repo_id))
 
-api.create_repo(repo_id=repo_id, repo_type="space", exist_ok=True, private=False, space_sdk="gradio")
+api.create_repo(repo_id=repo_id, repo_type="space", exist_ok=True, private=False, space_sdk="static")
 api.upload_folder(
     folder_path=str(Path("huggingface-space")),
     repo_id=repo_id,
     repo_type="space",
-    commit_message="Add RouteOptimizer Gradio demo Space",
+    commit_message="Sync RouteOptimizer static demo Space",
 )
 print("https://huggingface.co/spaces/" + repo_id)
 PY
